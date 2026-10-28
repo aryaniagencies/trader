@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trader Console</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      background: #f4f5f2;
+      color: #202622;
+    }
+    * { box-sizing: border-box; }
+    body { max-width: 760px; margin: 0 auto; padding: 32px 20px; }
+    header { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid #c9cfca; padding-bottom: 16px; }
+    h1 { font-size: 20px; margin: 0; font-weight: 650; }
+    #state { color: #52625a; font-size: 13px; }
+    main { padding-top: 24px; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+    button { border: 1px solid #64776c; background: #fff; color: #202622; border-radius: 4px; padding: 9px 12px; font: inherit; cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .45; }
+    button.primary { background: #236b4a; border-color: #236b4a; color: #fff; }
+    h2 { margin: 30px 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: #52625a; }
+    pre { min-height: 150px; margin: 0; padding: 14px; border-top: 1px solid #c9cfca; border-bottom: 1px solid #c9cfca; overflow: auto; white-space: pre-wrap; font: inherit; font-size: 13px; }
+    @media (max-width: 480px) { body { padding: 22px 14px; } header { align-items: flex-start; flex-direction: column; gap: 8px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Trader Console</h1>
+    <span id="state">Disconnected</span>
+  </header>
+  <main>
+    <div class="controls">
+      <button class="primary" id="connect">Connect</button>
+      <button id="subscribe" disabled>Subscribe</button>
+      <button id="disconnect" disabled>Disconnect</button>
+    </div>
+    <h2>Market data</h2>
+    <pre id="feed" aria-live="polite">No market data received.</pre>
+  </main>
+  <script>
+    const state = document.querySelector("#state");
+    const feed = document.querySelector("#feed");
+    const connectButton = document.querySelector("#connect");
+    const subscribeButton = document.querySelector("#subscribe");
+    const disconnectButton = document.querySelector("#disconnect");
+    let socket;
+
+    function setConnected(connected) {
+      state.textContent = connected ? "Connected to paper broker" : "Disconnected";
+      connectButton.disabled = connected;
+      subscribeButton.disabled = !connected;
+      disconnectButton.disabled = !connected;
+    }
+
+    connectButton.addEventListener("click", () => {
+      socket = new WebSocket("ws://127.0.0.1:8765");
+      socket.addEventListener("open", () => {
+        setConnected(true);
+        socket.send("get_status");
+      });
+      socket.addEventListener("message", (event) => {
+        const message = String(event.data);
+        if (message.startsWith("tick|")) {
+          feed.textContent = `${message}\n${feed.textContent}`.slice(0, 8000);
+        } else {
+          state.textContent = message.replaceAll("|", " · ");
+        }
+      });
+      socket.addEventListener("close", () => setConnected(false));
+      socket.addEventListener("error", () => { state.textContent = "Connection error"; });
+    });
+
+    subscribeButton.addEventListener("click", () => socket?.send("subscribe_market_data"));
+    disconnectButton.addEventListener("click", () => socket?.close());
+  </script>
+</body>
+</html>
